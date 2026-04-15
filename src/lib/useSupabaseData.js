@@ -42,24 +42,7 @@ export function useSupabaseData(table, options = {}) {
 
   useEffect(() => {
     fetchData()
-
-    // Realtime subscription with unique channel name
-    const channelName = `${table}-${user?.id || 'anon'}-${Date.now()}`
-    const channel = supabase
-      .channel(channelName)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: table,
-      }, () => {
-        fetchData()
-      })
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [fetchData, table, user?.id])
+  }, [fetchData])
 
   const insert = async (row) => {
     try {
@@ -75,7 +58,7 @@ export function useSupabaseData(table, options = {}) {
       setData(prev => ascending ? [...prev, newRow] : [newRow, ...prev])
       return { data: newRow, error: null }
     } catch (err) {
-      console.error(`Unexpected error inserting into ${table}:`, err)
+      console.error(`Unexpected error:`, err)
       return { data: null, error: err }
     }
   }
