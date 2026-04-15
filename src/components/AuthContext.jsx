@@ -11,14 +11,12 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
       if (session?.user) fetchProfile(session.user.id)
       else setLoading(false)
     })
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
       if (session?.user) fetchProfile(session.user.id)
@@ -32,12 +30,47 @@ export function AuthProvider({ children }) {
   }, [])
 
   const fetchProfile = async (userId) => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
-    setProfile(data)
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle()
+
+      if (error) {
+        console.error('Error fetching profile:', error)
+        // If table doesn't exist or other error, still let the app load
+        setProfile(null)
+      } else if (!data) {
+        // Profile doesn't exist yet - create it manually
+        console.log('Profile not found, creating...')
+        const currentUser = (await supabase.auth.getUser()).data.user
+        if (currentUser) {
+          const { data: newProfile, error: insertError } = await supabase
+            .from('profiles')
+            .insert({
+              id: currentUser.id,
+              email: currentUser.email,
+              display_name: currentUser.user_metadata?.display_name || currentUser.email.split('@')[0],
+              partner_code: Math.random().toString(36).substring(2, 10),
+            })
+            .select()
+            .maybeSingle()
+
+          if (insertError) {
+            console.error('Error creating profile:', insertError)
+            setProfile(null)
+          } else {
+            setProfile(newProfile)
+          }
+        }
+      } else {
+        setProfile(data)
+      }
+    } catch (err) {
+      console.error('Unexpected error:', err)
+      setProfile(null)
+    }
     setLoading(false)
   }
 
